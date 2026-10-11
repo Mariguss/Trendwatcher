@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Финтех Трендвотчер - Дайджест</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .gradient-bg {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        .card-hover {
+            transition: all 0.3s ease;
+        }
+        .card-hover:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+        }
+    </style>
+</head>
+<body class="bg-gray-50">
+    <!-- Header -->
+    <header class="gradient-bg text-white shadow-lg">
+        <div class="container mx-auto px-6 py-8">
+            <div class="flex items-center justify-between">
+                <div>
+                    <h1 class="text-3xl font-bold">📈 Финтех Трендвотчер</h1>
+                    <p class="text-blue-100 mt-2">Автоматический мониторинг и анализ финтех-сигналов</p>
+                </div>
+                <div class="text-right">
+                    <div class="text-sm text-blue-100">Актуальных сигналов</div>
+                    <div class="text-3xl font-bold">{{ signals|length }}</div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="container mx-auto px-6 py-12">
+        {% if signals %}
+        <div class="space-y-6">
+            {% for signal in signals %}
+            <!-- Signal Card -->
+            <div class="bg-white rounded-lg shadow-md card-hover overflow-hidden">
+                <!-- Card Header -->
+                <div class="p-6 border-b border-gray-100">
+                    <div class="flex items-start justify-between mb-4">
+                        <div class="flex-1">
+                            <h2 class="text-2xl font-bold text-gray-800 mb-2">{{ signal.headline }}</h2>
+                            <div class="flex items-center space-x-3">
+                                <span class="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm font-medium">
+                                    {{ signal.category }}
+                                </span>
+                                <span class="text-sm text-gray-500">
+                                    Уверенность: {{ "%.0f"|format(signal.confidence * 100) }}%
+                                </span>
+                            </div>
+                        </div>
+                        
+                        <!-- Hotness Score -->
+                        <div class="ml-6 text-center">
+                            <div class="text-sm text-gray-500 mb-1">Важность</div>
+                            <div class="text-3xl font-bold {% if signal.hotness >= 8 %}text-red-500{% elif signal.hotness >= 6 %}text-orange-500{% else %}text-green-500{% endif %}">
+                                {{ "%.1f"|format(signal.hotness) }}
+                            </div>
+                            <div class="w-24 h-2 bg-gray-200 rounded-full mt-2 overflow-hidden">
+                                <div class="h-full {% if signal.hotness >= 8 %}bg-red-500{% elif signal.hotness >= 6 %}bg-orange-500{% else %}bg-green-500{% endif %}" 
+                                     style="width: {{ (signal.hotness / 10 * 100)|int }}%"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Card Body -->
+                <div class="p-6 space-y-4">
+                    <!-- Why Now -->
+                    <div>
+                        <h3 class="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-2">
+                            💡 Почему сейчас
+                        </h3>
+                        <p class="text-gray-700 leading-relaxed">{{ signal.why_now }}</p>
+                    </div>
+
+                    <!-- Summary -->
+                    <div>
+                        <h3 class="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-2">
+                            📝 Краткая выжимка
+                        </h3>
+                        <p class="text-gray-700 leading-relaxed">{{ signal.summary }}</p>
+                    </div>
+
+                    <!-- Draft -->
+                    <div class="bg-gray-50 rounded-lg p-4">
+                        <h3 class="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-2">
+                            📄 Черновик для команды
+                        </h3>
+                        <p class="text-gray-700 leading-relaxed whitespace-pre-line">{{ signal.draft }}</p>
+                    </div>
+
+                    <!-- Sources -->
+                    {% if signal.sources %}
+                    <div>
+                        <h3 class="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-2">
+                            🔗 Проверяемые источники
+                        </h3>
+                        <ul class="space-y-2">
+                            {% for source in signal.sources %}
+                            <li>
+                                <a href="{{ source.url }}" target="_blank" 
+                                   class="text-blue-600 hover:text-blue-800 hover:underline flex items-center">
+                                    <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                                              d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path>
+                                    </svg>
+                                    {{ source.title }}
+                                </a>
+                            </li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="text-center py-12">
+            <div class="text-6xl mb-4">📭</div>
+            <h2 class="text-2xl font-bold text-gray-700 mb-2">Сигналы не найдены</h2>
+            <p class="text-gray-500">Убедитесь, что пайплайн (scraper → embedder → signal_generator) был успешно запущен</p>
+        </div>
+        {% endif %}
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-gray-800 text-white py-6 mt-12">
+        <div class="container mx-auto px-6 text-center">
+            <p class="text-gray-400">Финтех Трендвотчер • Прототип v1.0</p>
+        </div>
+    </footer>
+</body>
+</html>

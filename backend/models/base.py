@@ -15,7 +15,7 @@ class Base(DeclarativeBase):
         return f"{cls.__name__.lower()}s"
 
     type_annotation_map = {
-        list[float]: Vector(1536),
+        list[float]: Vector(312),
     }
 
     metadata = MetaData(

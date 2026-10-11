@@ -10,13 +10,41 @@ services:
       - "5435:5432"
     volumes:
       - pgdata:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U user -d db"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
   adminer:
     image: adminer
     ports:
       - "8081:8080"
     depends_on:
-      - pg
+      pg:
+        condition: service_healthy
+
+  pipeline:
+    build: .
+    environment:
+      APP_CONFIG__DB__URL: postgresql+asyncpg://user:password@pg:5432/db
+    depends_on:
+      pg:
+        condition: service_healthy
+    command: python run_pipeline.py
+    restart: "no"
+
+  web:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      APP_CONFIG__DB__URL: postgresql+asyncpg://user:password@pg:5432/db
+    depends_on:
+      pg:
+        condition: service_healthy
+      pipeline:
+        condition: service_completed_successfully
 
 volumes:
   pgdata:
