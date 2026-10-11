@@ -1,7 +1,7 @@
 import uuid
 
 from sqlalchemy import (
-    ForeignKey,
+    ForeignKey, UUID,
 )
 from sqlalchemy.orm import (
     Mapped,
@@ -16,9 +16,11 @@ from backend.models.signals import Signal
 
 class SignalSource(BaseWithUUID):
     signal_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
         ForeignKey("signals.id", ondelete="CASCADE"),
     )
     publication_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
         ForeignKey("rawpublications.id", ondelete="CASCADE"),
     )
 

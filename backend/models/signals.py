@@ -4,7 +4,7 @@ import uuid
 from sqlalchemy import (
     ForeignKey,
     String,
-    Text,
+    Text, UUID,
 )
 from sqlalchemy.orm import (
     Mapped,
@@ -28,6 +28,7 @@ class Category(str, enum.Enum):
 
 class Signal(BaseWithUUID, CreatedAtMixin):
     cluster_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
         ForeignKey("publicationclusters.id", ondelete="CASCADE"),
     )
     category: Mapped[Category]

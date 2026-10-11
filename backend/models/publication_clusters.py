@@ -2,6 +2,7 @@ import uuid
 
 from sqlalchemy import (
     ForeignKey,
+    UUID,
 )
 from sqlalchemy.orm import (
     Mapped,
@@ -15,6 +16,7 @@ from backend.models.mixins import CreatedAtMixin
 
 class PublicationCluster(BaseWithUUID, CreatedAtMixin):
     primary_publication_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
         ForeignKey("rawpublications.id", ondelete="CASCADE"),
     )
 
