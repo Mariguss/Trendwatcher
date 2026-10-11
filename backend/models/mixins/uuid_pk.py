@@ -9,5 +9,5 @@ from sqlalchemy.orm import (
 class UUIDPKMixin:
     id: Mapped[uuid.UUID] = mapped_column(
         primary_key=True,
-        default=uuid.uuid7,
+        default=uuid.uuid4,
     )
