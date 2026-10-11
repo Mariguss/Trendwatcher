@@ -12,7 +12,7 @@ from backend.utils.date import get_now
 
 class CreatedAtMixin:
     created_at: Mapped[datetime.datetime | None] = mapped_column(
-        DateTime,
+        DateTime(timezone=True),
         default=get_now,
         server_default=func.now(),
     )

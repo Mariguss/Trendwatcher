@@ -1,8 +1,6 @@
-import enum
 from typing import TYPE_CHECKING
 
 from sqlalchemy import (
-    Float,
     String,
 )
 from sqlalchemy.orm import (
