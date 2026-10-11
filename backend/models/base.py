@@ -1,3 +1,5 @@
+from uuid import UUID
+
 from pgvector.sqlalchemy import Vector
 from sqlalchemy import MetaData
 from sqlalchemy.orm import (
@@ -6,7 +8,10 @@ from sqlalchemy.orm import (
 )
 
 from backend.core.config import settings
-from backend.models.mixins import IntIdPKMixin
+from backend.models.mixins import (
+    IntIdPKMixin,
+    UUIDPKMixin,
+)
 
 
 class Base(DeclarativeBase):
@@ -15,7 +20,7 @@ class Base(DeclarativeBase):
         return f"{cls.__name__.lower()}s"
 
     type_annotation_map = {
-        list[float]: Vector(1536),
+        list[float]: Vector(312),
     }
 
     metadata = MetaData(
@@ -27,5 +32,5 @@ class BaseWithId(Base, IntIdPKMixin):
     __abstract__ = True
 
 
-class BaseWithUUID(Base, IntIdPKMixin):
+class BaseWithUUID(Base, UUIDPKMixin):
     __abstract__ = True

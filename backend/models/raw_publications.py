@@ -22,7 +22,7 @@ class RawPublication(BaseWithUUID):
     )
     title: Mapped[str] = mapped_column(Text)
     content: Mapped[str] = mapped_column(Text)
-    url: Mapped[str] = mapped_column(String(255))
+    url: Mapped[str] = mapped_column(String(255), unique=True)
     embedded: Mapped[list[float] | None] = mapped_column(nullable=True)
     published_at: Mapped[datetime.datetime | None] = mapped_column(
         DateTime(timezone=True),
