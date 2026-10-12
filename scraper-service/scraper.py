@@ -1,180 +1,126 @@
-import sys
-import os
-
-current_dir = os.path.dirname(os.path.abspath(__file__))
-project_root = current_dir
-
-
-while not os.path.exists(os.path.join(project_root, "backend")):
-    parent_dir = os.path.dirname(project_root)
-    if parent_dir == project_root:  
-        break
-    project_root = parent_dir
-
-
-sys.path.insert(0, project_root)
-
+"""
+Парсер для сбора публикаций из проверенных RSS-лент.
+Извлекает заголовок, дату и очищенный текст статьи.
+"""
 
 import asyncio
 import logging
-import re
 from datetime import datetime, timezone
-from urllib.parse import urljoin
 
+import feedparser
 import httpx
-import trafilatura
 from bs4 import BeautifulSoup
 from sqlalchemy import select
 
 from backend.core.database import database
 from backend.models.raw_publications import RawPublication
-from backend.models.sources import Source
-
+from backend.models.sources import Source, SourceType
 
 logger = logging.getLogger(__name__)
 
-KEYWORDS = [
-    "сбп", "цифровой рубль", "ебс", "биометрия", "финтех", 
-    "эквайринг", "маркетплейс", "банк", "партнерство", "платеж", "сервис"
-]
+# Константы конфигурации
+REQUEST_TIMEOUT: float = 15.0
+DELAY_BETWEEN_REQUESTS: float = 1.0
+MAX_ARTICLES_PER_SOURCE: int = 100
+MIN_CONTENT_LENGTH: int = 150
+MAX_CONTENT_LENGTH: int = 4000
 
 
-class FintechScraper:
-    def __init__(self):
-        self.headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                          "AppleWebKit/537.36 (KHTML, like Gecko) "
-                          "Chrome/120.0.0.0 Safari/537.36"
-        }
-
-    async def fetch_html(self, url: str) -> str:
-        async with httpx.AsyncClient(headers=self.headers, timeout=15.0) as client:
-            try:
-                response = await client.get(url)
-                response.raise_for_status()
-                return response.text
-            except httpx.HTTPError as e:
-                logger.error("Failed to fetch URL %s: %s", url, e)
-                return ""
-
-    def extract_clean_text(self, html: str, url: str) -> dict | None:
-        text = trafilatura.extract(html, include_comments=False, include_tables=False)
-        if not text or len(text) < 150:
-            return None
+async def main() -> None:
+    """Основной цикл парсинга RSS-источников."""
+    logger.info("Запуск RSS-парсера")
+    
+    async for session in database.get_session():
+        stmt = select(Source).where(Source.source_type == SourceType.RSS)
+        sources = (await session.execute(stmt)).scalars().all()
         
-        soup = BeautifulSoup(html, "html.parser")
-        title = soup.title.string.strip() if soup.title else "Без заголовка"
+        logger.info("Найдено %d RSS-источников для обработки", len(sources))
         
-        text_lower = text.lower()
-        if not any(kw in text_lower for kw in KEYWORDS):
-            return None
-
-        return {
-            "title": title,
-            "content": text,
-            "url": url,
-            "published_at": datetime.now(timezone.utc)
-        }
-
-    async def scrape_vc_ru(self, source_id: int):
-        logger.info("Starting scrape for VC.ru (Finance)")
-        url = "https://vc.ru/finance"
-        html = await self.fetch_html(url)
-        soup = BeautifulSoup(html, "html.parser")
+        total_added = 0
         
-        articles = soup.find_all("a", href=True)
-        links_to_parse = []
+        async with httpx.AsyncClient(
+            verify=False, 
+            timeout=REQUEST_TIMEOUT, 
+            follow_redirects=True,
+            headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
+        ) as client:
+            for source in sources:
+                logger.info("Обработка источника: %s", source.name)
+                
+                try:
+                    response = await client.get(source.api_url)
+                    response.raise_for_status()
+                    
+                    feed = feedparser.parse(response.text)
+                    added_count = 0
+                    
+                    for entry in feed.entries[:MAX_ARTICLES_PER_SOURCE]:
+                        title = entry.get("title", "").strip()
+                        if not title:
+                            continue
+                        
+                        # Извлечение сырого текста
+                        raw_text = entry.get("summary", "")
+                        if not raw_text and entry.get("content"):
+                            raw_text = entry["content"][0].get("value", "")
+                        
+                        # Очистка от HTML-разметки
+                        soup = BeautifulSoup(raw_text, "html.parser")
+                        clean_text = soup.get_text(separator=" ", strip=True)
+                        
+                        # Фильтрация слишком коротких записей
+                        if len(clean_text) < MIN_CONTENT_LENGTH:
+                            continue
+                        
+                        # Определение даты публикации
+                        date_tuple = entry.get("published_parsed") or entry.get("updated_parsed")
+                        if date_tuple:
+                            try:
+                                pub_date = datetime(*date_tuple[:6], tzinfo=timezone.utc).replace(tzinfo=None)
+                            except (ValueError, TypeError):
+                                pub_date = datetime.now(timezone.utc).replace(tzinfo=None)
+                        else:
+                            pub_date = datetime.now(timezone.utc).replace(tzinfo=None)
+                        
+                        # Проверка на дубликаты по URL
+                        url = entry.get("link", "")[:250]
+                        exists_stmt = select(RawPublication).where(RawPublication.url == url)
+                        existing = (await session.execute(exists_stmt)).scalar_one_or_none()
+                        
+                        if existing:
+                            continue
+                        
+                        # Сохранение публикации
+                        session.add(RawPublication(
+                            source_id=source.id,
+                            url=url,
+                            title=title,
+                            content=clean_text[:MAX_CONTENT_LENGTH],
+                            published_at=pub_date,
+                        ))
+                        added_count += 1
+                    
+                    total_added += added_count
+                    logger.info("Источник '%s' обработан. Добавлено статей: %d", source.name, added_count)
+                    
+                except httpx.HTTPError as e:
+                    logger.error("HTTP ошибка при запросе %s: %s", source.name, e)
+                except Exception as e:
+                    logger.error("Непредвиденная ошибка при обработке %s: %s", source.name, e, exc_info=True)
+                
+                await asyncio.sleep(DELAY_BETWEEN_REQUESTS)
         
-        # Более гибкое условие: ссылка должна содержать vc.ru/finance/ и не быть просто главной страницей раздела
-        for a in articles:
-            href = a["href"]
-            if href.startswith("https://vc.ru/finance/") and len(href) > 30:
-                links_to_parse.append(href)
-        
-        # Убираем дубликаты и берем первые 5
-        unique_links = list(set(links_to_parse))[:5]
-        logger.info("Found %d potential article links on VC.ru", len(unique_links))
-        
-        for link in unique_links:
-            logger.debug("Fetching article: %s", link)
-            article_html = await self.fetch_html(link)
-            data = self.extract_clean_text(article_html, link)
-            if data:
-                await self.save_publication(source_id, data)
-            else:
-                logger.debug("Skipped (no keywords or too short): %s", link)
-            await asyncio.sleep(1)
-
-    async def scrape_tadviser(self, source_id: int):
-        logger.info("Starting scrape for TAdviser")
-        url = "https://www.tadviser.ru/index.php/Новости"
-        html = await self.fetch_html(url)
-        soup = BeautifulSoup(html, "html.parser")
-        
-        articles = soup.find_all("a", href=True)
-        links_to_parse = []
-        
-        for a in articles:
-            href = a["href"]
-            # Ищем ссылки на конкретные новости (они обычно содержат /index.php/ и имеют достаточную длину)
-            if "/index.php/" in href and len(href) > 40:
-                full_url = urljoin("https://www.tadviser.ru", href)
-                links_to_parse.append(full_url)
-        
-        unique_links = list(set(links_to_parse))[:3] # Берем 3 для теста
-        logger.info("Found %d potential article links on TAdviser", len(unique_links))
-        
-        for link in unique_links:
-            logger.debug("Fetching article: %s", link)
-            article_html = await self.fetch_html(link)
-            data = self.extract_clean_text(article_html, link)
-            if data:
-                await self.save_publication(source_id, data)
-            else:
-                logger.debug("Skipped (no keywords or too short): %s", link)
-            await asyncio.sleep(1)
-
-    async def save_publication(self, source_id: int, data: dict):
-        async for session in database.get_session():
-            stmt = select(RawPublication).where(RawPublication.url == data["url"])
-            if (await session.execute(stmt)).scalar_one_or_none():
-                logger.debug("Publication already exists: %s", data["url"])
-                return
-
-            pub = RawPublication(
-                source_id=source_id,
-                title=data["title"],
-                content=data["content"],
-                url=data["url"],
-                published_at=data["published_at"],
-                embedded=None
-            )
-            session.add(pub)
+        if total_added > 0:
             await session.commit()
-            logger.info("Saved publication: %s", data["title"][:60])
-
-    async def run(self):
-        async for session in database.get_session():
-            sources = (await session.execute(select(Source))).scalars().all()
-            
-            tasks = []
-            for src in sources:
-                if "vc.ru" in src.url:
-                    tasks.append(self.scrape_vc_ru(src.id))
-                elif "tadviser.ru" in src.url:
-                    tasks.append(self.scrape_tadviser(src.id))
-            
-            if tasks:
-                await asyncio.gather(*tasks)
-            else:
-                logger.warning("No configured sources found. Please run seed_sources.py first.")
+            logger.info("Парсинг завершен. Всего добавлено новых статей: %d", total_added)
+        else:
+            logger.info("Парсинг завершен. Новых статей не найдено.")
 
 
 if __name__ == "__main__":
     logging.basicConfig(
-        level=logging.DEBUG, # Включаем DEBUG, чтобы видеть все шаги
-        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+        level=logging.INFO, 
+        format="%(asctime)s | %(levelname)-8s | %(name)s | %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S"
     )
-    
-    scraper = FintechScraper()
-    asyncio.run(scraper.run())
+    asyncio.run(main())
