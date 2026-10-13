@@ -1,3 +1,20 @@
+import sys
+import os
+
+current_dir = os.path.dirname(os.path.abspath(__file__))
+project_root = current_dir
+
+
+while not os.path.exists(os.path.join(project_root, "backend")):
+    parent_dir = os.path.dirname(project_root)
+    if parent_dir == project_root: 
+        break
+    project_root = parent_dir
+
+
+sys.path.insert(0, project_root)
+
+
 import logging
 from typing import List
 
