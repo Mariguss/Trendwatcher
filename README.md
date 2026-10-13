@@ -7,7 +7,7 @@ poetry install
 ```
 * Если вы используете pip
 ```
-pip install -r requirements.txt
+pip install -r requirements.txthttps://github.com/Mariguss/Trendwatcher/blob/main/README.md
 ```
 Запустите docker-compose.yaml
 ```
@@ -30,4 +30,11 @@ CREATE EXTENSION IF NOT EXISTS vector;
 После в терминале проекта примените миграции:
 ```
 alembic upgrade head
+```
+
+Если вы работаете с poetry, выполните команду для импорта зависимостей в файл requirements.txt,
+
+чтобы другие смогли пользоваться своим пакетным менеджером
+```
+poetry export -f requirements.txt --output requirements.txt --without-hashes
 ```
