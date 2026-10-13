@@ -4,6 +4,13 @@ from typing import List, Dict, Any
 
 from sqlalchemy import select
 
+from asyncio import Semaphore
+
+from json import loads
+
+from gigachat import GigaChat
+from gigachat.models import ChatCompletionRequest, ChatMessage
+
 from backend.core.database import database
 from backend.models.cluster_items import ClusterItem
 from backend.models.publication_clusters import PublicationCluster
@@ -15,41 +22,34 @@ logger = logging.getLogger(__name__)
 
 
 class SignalGeneratorService:
+    SYSTEM_PROMPT:str
+    semaphore = Semaphore(10)
     """
     Сервис для генерации структурированных сигналов на основе кластеров публикаций.
     Реализует логику: Кластер -> Анализ текста -> Карточка сигнала (Summary, Hotness, Why now, Draft).
     """
 
-    def _generate_mock_llm_response(self, primary_text: str, title: str) -> Dict[str, Any]:
+    async def _generate_mock_llm_response(self, primary_text: str, title: str, client) -> Dict[str, Any]:
         """
-        Генерирует структурированный ответ, имитирующий работу LLM.
-        В продакшене здесь будет вызов YandexGPT / GigaChat / Ollama с промптом.
+        Генерирует структурированный ответ.
         """
-        # Простая эвристика для определения категории по ключевым словам
-        text_lower = primary_text.lower()
-        if "сбп" in text_lower or "платеж" in text_lower or "qr" in text_lower:
-            category = Category.PAYMENT_SERVICE
-        elif "регулятор" in text_lower or "цб" in text_lower or "указание" in text_lower:
-            category = Category.REGULATION
-        elif "партнер" in text_lower or "совместн" in text_lower:
-            category = Category.PARTNERSHIP
-        else:
-            category = Category.MARKET
-
-        # Генерация "умных" полей на основе заголовка и начала текста
-        first_sentences = primary_text.split('.')[:2]
-        summary_text = ". ".join(first_sentences).strip() + "."
-        
-        return {
-            "headline": title if len(title) < 80 else title[:77] + "...",
-            "hotness": random.uniform(7.0, 9.5),  # Для прототипа ставим высокую релевантность
-            "why_now": "Растущий тренд на импортозамещение и цифровизацию финансовых сервисов делает эту тему актуальной для стратегического планирования.",
-            "category": category,
-            "summary": summary_text,
-            "draft": f"Коллеги, обратите внимание на сигнал по категории {category.value}.\n\n"
-                     f"Суть: {summary_text}\n\n"
-                     f"Рекомендация: обсудить на ближайшем продуктовом комитете влияние на наши текущие roadmap."
-        }
+        async with self.semaphore:
+            messages = [
+                ChatMessage(role="system", content=self.SYSTEM_PROMPT),
+                ChatMessage(
+                    role="user",
+                    content=f"Проанализируй следующую статью.\nНазвание:\n{title}\nТекст статьи:\n{primary_text}",
+                )]
+            try:
+                response = await client.achat.create(
+                    ChatCompletionRequest(model="GigaChat-2", messages=messages)
+                )
+                response = response.messages[0].content[0].text
+                #Отобрали только нужную часть ответа и возвращаем словарь
+                return loads(response)
+            except Exception as e:
+                """Ошибки пусть обрабатываются как словарь с ошибкой по ключу 'exception'"""
+                return {"exception": e}
 
     async def process_clusters(self) -> int:
         """Обрабатывает все кластеры и создает для них сигналы."""
@@ -65,65 +65,74 @@ class SignalGeneratorService:
                 return 0
 
             logger.info("Found %d clusters to process into signals.", len(clusters))
+            async with GigaChat(
+                credentials="<the key>",
+                ca_bundle_file="Russian_Trusted_Root_CA.cer",
+                scope="GIGACHAT_API_PERS"
+            ) as client:
+                for cluster in clusters:
+                    # Проверяем, не создан ли уже сигнал для этого кластера
+                    existing_signal = (await session.execute(
+                        select(Signal).where(Signal.cluster_id == cluster.id)
+                    )).scalar_one_or_none()
 
-            for cluster in clusters:
-                # Проверяем, не создан ли уже сигнал для этого кластера
-                existing_signal = (await session.execute(
-                    select(Signal).where(Signal.cluster_id == cluster.id)
-                )).scalar_one_or_none()
-                
-                if existing_signal:
-                    logger.debug("Signal already exists for cluster %d", cluster.id)
-                    continue
+                    if existing_signal:
+                        logger.debug("Signal already exists for cluster %d", cluster.id)
+                        continue
 
-                # Находим первичную публикацию в кластере для генерации выжимки
-                primary_item_stmt = select(ClusterItem).where(
-                    ClusterItem.cluster_id == cluster.id,
-                    ClusterItem.is_primary == True
-                )
-                primary_item = (await session.execute(primary_item_stmt)).scalar_one_or_none()
-                
-                if not primary_item:
-                    logger.warning("No primary item found for cluster %d", cluster.id)
-                    continue
+                    # Находим первичную публикацию в кластере для генерации выжимки
+                    primary_item_stmt = select(ClusterItem).where(
+                        ClusterItem.cluster_id == cluster.id,
+                        ClusterItem.is_primary == True
+                    )
+                    primary_item = (await session.execute(primary_item_stmt)).scalar_one_or_none()
 
-                pub = (await session.execute(
-                    select(RawPublication).where(RawPublication.id == primary_item.publication_id)
-                )).scalar_one_or_none()
+                    if not primary_item:
+                        logger.warning("No primary item found for cluster %d", cluster.id)
+                        continue
 
-                if not pub:
-                    continue
+                    pub = (await session.execute(
+                        select(RawPublication).where(RawPublication.id == primary_item.publication_id)
+                    )).scalar_one_or_none()
 
-                logger.info("Generating signal for cluster %d (Primary pub: %s)", cluster.id, pub.title[:40])
+                    if not pub:
+                        continue
 
-                # Генерируем карточку сигнала
-                signal_data = self._generate_mock_llm_response(pub.content, pub.title)
+                    logger.info("Generating signal for cluster %d (Primary pub: %s)", cluster.id, pub.title[:40])
 
-                # Создаем запись сигнала
-                new_signal = Signal(
-                    cluster_id=cluster.id,
-                    category=signal_data["category"],
-                    headline=signal_data["headline"],
-                    hotness=signal_data["hotness"],
-                    why_now=signal_data["why_now"],
-                    summary=signal_data["summary"],
-                    draft=signal_data["draft"],
-                    confidence_score=0.85  # Уверенность в качестве кластеризации
-                )
-                session.add(new_signal)
-                await session.flush()  # Получаем new_signal.id
+                    # Генерируем карточку сигнала
+                    signal_data = await self._generate_mock_llm_response(pub.content, pub.title, client)
 
-                # Связываем сигнал со всеми публикациями в этом кластере как источники
-                all_items_stmt = select(ClusterItem).where(ClusterItem.cluster_id == cluster.id)
-                all_items = (await session.execute(all_items_stmt)).scalars().all()
-                
-                for item in all_items:
-                    session.add(SignalSource(
-                        signal_id=new_signal.id,
-                        publication_id=item.publication_id
-                    ))
+                    # Проверяем получилось ли обработать
+                    if signal_data.get("exception"):
+                        logger.warning("Smts wrong in process cluster %d", cluster.id)
+                        continue
 
-                signals_created += 1
+                    # Создаем запись сигнала
+                    new_signal = Signal(
+                        cluster_id=cluster.id,
+                        category=signal_data["category"],
+                        headline=signal_data["headline"],
+                        hotness=signal_data["hotness"],
+                        why_now=signal_data["why_now"],
+                        summary=signal_data["summary"],
+                        draft=signal_data["draft"],
+                        confidence_score=0.85  # Уверенность в качестве кластеризации
+                    )
+                    session.add(new_signal)
+                    await session.flush()  # Получаем new_signal.id
+
+                    # Связываем сигнал со всеми публикациями в этом кластере как источники
+                    all_items_stmt = select(ClusterItem).where(ClusterItem.cluster_id == cluster.id)
+                    all_items = (await session.execute(all_items_stmt)).scalars().all()
+
+                    for item in all_items:
+                        session.add(SignalSource(
+                            signal_id=new_signal.id,
+                            publication_id=item.publication_id
+                        ))
+
+                    signals_created += 1
 
             await session.commit()
             logger.info("Successfully created %d new signals.", signals_created)
@@ -135,7 +144,6 @@ class SignalGeneratorService:
         await self.process_clusters()
         logger.info("Signal generation pipeline finished.")
 
-
 if __name__ == "__main__":
     logging.basicConfig(
         level=logging.INFO,
@@ -144,4 +152,6 @@ if __name__ == "__main__":
     
     import asyncio
     service = SignalGeneratorService()
+    with open("SYSTEM_PROMPT", encoding="utf-8") as file:
+        service.SYSTEM_PROMPT = file.read()
     asyncio.run(service.run())
