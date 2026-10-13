@@ -31,3 +31,9 @@ CREATE EXTENSION IF NOT EXISTS vector;
 ```
 alembic upgrade head
 ```
+
+Если вы работаете с poetry, выполните команду для импорта зависимостей в файл requirements.txt
+чтобы смогли пользоваться своим пакетным менеджером
+```
+poetry export -f requirements.txt --output requirements.txt --without-hashes
+```
