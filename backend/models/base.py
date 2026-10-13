@@ -1,5 +1,3 @@
-from uuid import UUID
-
 from pgvector.sqlalchemy import Vector
 from sqlalchemy import MetaData
 from sqlalchemy.orm import (
