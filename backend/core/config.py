@@ -1,12 +1,13 @@
 from pathlib import Path
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from pydantic_settings import (
     BaseSettings,
     SettingsConfigDict,
 )
 
-BASE_DIR = Path(__file__).parent.parent.parent
+BASE_DIR = Path(__file__).resolve().parent.parent.parent
+# BASE_DIR = Path(__file__).parent.parent.parent
 SQLITE_DB_PATH = str(BASE_DIR / "db.sqlite3")
 
 
@@ -33,14 +34,16 @@ class DatabaseSettings(BaseModel):
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_file=(".env.template", ".env"),
+        env_file=(
+            BASE_DIR / ".env",
+            BASE_DIR / ".env.example"),
         case_sensitive=False,
         env_nested_delimiter="__",
         env_prefix="APP_CONFIG__",
     )
 
     run: RunSettings = RunSettings()
-    db: DatabaseSettings = DatabaseSettings()
+    db: DatabaseSettings = Field(default_factory=DatabaseSettings)
 
 
 settings = Settings()
