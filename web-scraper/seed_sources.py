@@ -6,6 +6,7 @@
 import asyncio
 import json
 import logging
+from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
 
@@ -85,7 +86,6 @@ async def upsert_sources(sources: list[SourceConfig], session: AsyncSession) -> 
             source_type=source_type,
             reliability_score=config.reliability_score,
             api_url=config.api_url,
-            api_key=config.api_key,
         )
         session.add(new_source)
         added_count += 1
@@ -107,13 +107,14 @@ async def main() -> None:
         logger.info("Успешно загружено и валидировано %d источников", len(validated_sources))
         
         # 2. Запись в БД
-        async for session in database.get_session():
+        session_manager = asynccontextmanager(database.get_session)
+        async with session_manager() as session:
             added, skipped = await upsert_sources(validated_sources, session)
-            
-            logger.info(
-                "Операция завершена. Добавлено: %d, Пропущено: %d", 
-                added, skipped
-            )
+
+        logger.info(
+            "Операция завершена. Добавлено: %d, Пропущено: %d",
+            added, skipped
+        )
             
     except FileNotFoundError as e:
         logger.critical("Критическая ошибка: %s", e)
