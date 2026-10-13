@@ -1,0 +1,37 @@
+[
+  {
+    "name": "Коммерсантъ",
+    "url": "https://www.kommersant.ru/",
+    "api_url": "https://www.kommersant.ru/RSS/news.xml",
+    "source_type": "rss",
+    "reliability_score": 8.5
+  },
+  {
+    "name": "Ведомости",
+    "url": "https://www.vedomosti.ru/",
+    "api_url": "https://www.vedomosti.ru/rss/articles",
+    "source_type": "rss",
+    "reliability_score": 8.5
+  },
+  {
+    "name": "CNews",
+    "url": "https://www.cnews.ru/",
+    "api_url": "https://www.cnews.ru/inc/rss/news.xml",
+    "source_type": "rss",
+    "reliability_score": 8.0
+  },
+  {
+    "name": "Лента.ру",
+    "url": "https://lenta.ru/",
+    "api_url": "https://lenta.ru/rss",
+    "source_type": "rss",
+    "reliability_score": 7.5
+  },
+  {
+    "name": "РИА Новости (Экономика)",
+    "url": "https://ria.ru/",
+    "api_url": "https://ria.ru/export/rss2/economy/index.xml",
+    "source_type": "rss",
+    "reliability_score": 8.0
+  }
+]

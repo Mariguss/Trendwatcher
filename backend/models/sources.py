@@ -27,3 +27,6 @@ class Source(BaseWithId):
     source_type: Mapped[SourceType]
     url: Mapped[str] = mapped_column(String(255))
     reliability_score: Mapped[float] = mapped_column(Float)
+
+    api_url: Mapped[str | None] = mapped_column(String(500), nullable=True, default=None)
+    
