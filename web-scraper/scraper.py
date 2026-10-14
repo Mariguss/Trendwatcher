@@ -99,8 +99,12 @@ async def main() -> None:
                             published_at=pub_date,
                         ))
                         added_count += 1
+                        # if added_count == 10:
+                        #     break
                     
                     total_added += added_count
+                    # if total_added == 10:
+                    #     break
                     logger.info("Источник '%s' обработан. Добавлено статей: %d", source.name, added_count)
                     
                 except httpx.HTTPError as e:
