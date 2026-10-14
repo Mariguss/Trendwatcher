@@ -11,7 +11,7 @@ from backend.models.raw_publications import RawPublication
 
 logger = logging.getLogger(__name__)
 
-# Легкая и быстрая модель, поддерживающая русский язык (384 измерения)
+# Легкая и быстрая модель, поддерживающая русский язык (312 измерения)
 EMBEDDING_MODEL_NAME = "cointegrated/rubert-tiny2"
 
 
@@ -82,3 +82,9 @@ if __name__ == "__main__":
 
     # Запускаем единственный цикл событий, в котором выполнится вся цепочка
     asyncio.run(main())
+
+    # from transformers import AutoConfig
+    # # Загружаем только конфигурацию модели без скачивания самих весов
+    # config = AutoConfig.from_pretrained("cointegrated/rubert-tiny2")
+    # # Выводим размер скрытого слоя (количество измерений)
+    # print(config.hidden_size)  # Выведет: 312
