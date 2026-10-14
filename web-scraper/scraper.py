@@ -30,7 +30,7 @@ async def main() -> None:
     """Основной цикл парсинга RSS-источников."""
     logger.info("Запуск RSS-парсера")
     
-    async for session in database.get_session():
+    async with database.get_session() as session:
         stmt = select(Source).where(Source.source_type == SourceType.RSS)
         sources = (await session.execute(stmt)).scalars().all()
         
@@ -99,8 +99,12 @@ async def main() -> None:
                             published_at=pub_date,
                         ))
                         added_count += 1
+                        # if added_count == 10:
+                        #     break
                     
                     total_added += added_count
+                    # if total_added == 10:
+                    #     break
                     logger.info("Источник '%s' обработан. Добавлено статей: %d", source.name, added_count)
                     
                 except httpx.HTTPError as e:
