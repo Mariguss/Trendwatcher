@@ -1,3 +1,4 @@
+import asyncio
 import logging
 
 import numpy as np
@@ -21,9 +22,13 @@ class ClusteringService:
         Ищет похожие публикации и объединяет их в кластеры.
         Это реализует требование ТЗ: 'борьба с дублями, перепечатками и нерелевантным шумом'.
         """
-        clusters_created = 0
-        try:            # Получаем все публикации, для которых уже рассчитаны векторы
-            stmt = select(RawPublication).where(RawPublication.embedded.isnot(None))
+        try:
+            clusters_created = 0
+            # Получаем все публикации, для которых уже рассчитаны векторы
+            stmt = (select(RawPublication)
+                    .where(RawPublication.embedded.isnot(None))
+                    .order_by(RawPublication.published_at.desc()))
+
             publications = (await self.session.execute(stmt)).scalars().all()
 
             if len(publications) < 2:
@@ -36,6 +41,11 @@ class ClusteringService:
             clustered_pub_ids = set()
 
             for i, pub1 in enumerate(publications):
+                stmt = (select(PublicationCluster).where(PublicationCluster.primary_publication_id == pub1.id))
+                is_pub1_already_clustered = (await self.session.execute(stmt)).scalar_one_or_none()
+                if is_pub1_already_clustered:
+                    clustered_pub_ids.add(pub1.id)
+                    continue
                 if pub1.id in clustered_pub_ids:
                     continue
 
@@ -73,7 +83,6 @@ class ClusteringService:
                         self.session.add(ClusterItem(
                             cluster_id=cluster.id,
                             publication_id=pub2.id,
-                            is_primary=False
                         ))
                         clustered_pub_ids.add(pub2.id)
 
@@ -82,4 +91,14 @@ class ClusteringService:
             await self.session.commit()
             logger.info("Clustering completed. Created %d clusters.", clusters_created)
 
-        return clusters_created
+            return clusters_created
+        except Exception as e:
+            logger.error(e)
+
+async def main():
+    async with database.get_session() as session:
+        service = ClusteringService(session)
+        await service.find_and_create_clusters()
+
+if __name__ == "__main__":
+    asyncio.run(main())
