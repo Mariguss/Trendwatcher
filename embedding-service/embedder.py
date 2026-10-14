@@ -58,14 +58,6 @@ class EmbeddingService:
         except Exception as e:
             logger.exception("Failed to save embedding for %d publications. Exception text: %s", processed_count, e)
 
-    # async def run_full_pipeline(self):
-    #     """Запускает полный пайплайн: векторизация -> кластеризация."""
-    #     logger.info("Starting embedding and clustering pipeline.")
-    #     embedded_count = await self.process_new_publications()
-    #     if embedded_count > 0 or True: # Всегда пытаемся кластеризовать, если есть данные
-    #         await self.find_and_create_clusters()
-    #     logger.info("Pipeline execution finished.")
-
 
 async def main():
     async with database.get_session() as session:
