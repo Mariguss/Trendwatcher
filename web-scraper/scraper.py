@@ -30,7 +30,7 @@ async def main() -> None:
     """Основной цикл парсинга RSS-источников."""
     logger.info("Запуск RSS-парсера")
     
-    async for session in database.get_session():
+    async with database.get_session() as session:
         stmt = select(Source).where(Source.source_type == SourceType.RSS)
         sources = (await session.execute(stmt)).scalars().all()
         
