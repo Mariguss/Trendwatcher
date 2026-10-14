@@ -11,7 +11,7 @@ from backend.models.raw_publications import RawPublication
 
 logger = logging.getLogger(__name__)
 
-# Легкая и быстрая модель, поддерживающая русский язык (384 измерения)
+# Легкая и быстрая модель, поддерживающая русский язык (312 измерения)
 EMBEDDING_MODEL_NAME = "cointegrated/rubert-tiny2"
 
 
@@ -58,14 +58,6 @@ class EmbeddingService:
         except Exception as e:
             logger.exception("Failed to save embedding for %d publications. Exception text: %s", processed_count, e)
 
-    # async def run_full_pipeline(self):
-    #     """Запускает полный пайплайн: векторизация -> кластеризация."""
-    #     logger.info("Starting embedding and clustering pipeline.")
-    #     embedded_count = await self.process_new_publications()
-    #     if embedded_count > 0 or True: # Всегда пытаемся кластеризовать, если есть данные
-    #         await self.find_and_create_clusters()
-    #     logger.info("Pipeline execution finished.")
-
 
 async def main():
     async with database.get_session() as session:
@@ -82,3 +74,9 @@ if __name__ == "__main__":
 
     # Запускаем единственный цикл событий, в котором выполнится вся цепочка
     asyncio.run(main())
+
+    # from transformers import AutoConfig
+    # # Загружаем только конфигурацию модели без скачивания самих весов
+    # config = AutoConfig.from_pretrained("cointegrated/rubert-tiny2")
+    # # Выводим размер скрытого слоя (количество измерений)
+    # print(config.hidden_size)  # Выведет: 312

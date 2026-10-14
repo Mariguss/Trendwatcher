@@ -47,7 +47,7 @@ class ClusteringService:
                 await self.session.flush()  # Получаем сгенерированный cluster.id
 
                 # Добавляем первичную публикацию в элементы кластера
-                session.add(ClusterItem(
+                self.session.add(ClusterItem(
                     cluster_id=cluster.id,
                     publication_id=pub1.id,
                     is_primary=True
@@ -70,7 +70,7 @@ class ClusteringService:
                             "Duplicate/reprint detected (similarity: %.2f): '%s' and '%s'",
                             similarity, pub1.title[:40], pub2.title[:40]
                         )
-                        session.add(ClusterItem(
+                        self.session.add(ClusterItem(
                             cluster_id=cluster.id,
                             publication_id=pub2.id,
                             is_primary=False
