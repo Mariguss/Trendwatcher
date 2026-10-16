@@ -77,7 +77,7 @@ class SignalGeneratorService:
                     )).scalar_one_or_none()
 
                     if existing_signal:
-                        logger.debug("Signal already exists for cluster %d", cluster.id)
+                        logger.debug("Signal already exists for cluster %s", cluster.id)
                         continue
 
                     # Находим первичную публикацию в кластере для генерации выжимки
@@ -88,7 +88,7 @@ class SignalGeneratorService:
                     primary_item = (await session.execute(primary_item_stmt)).scalar_one_or_none()
 
                     if not primary_item:
-                        logger.warning("No primary item found for cluster %d", cluster.id)
+                        logger.warning("No primary item found for cluster %s", cluster.id)
                         continue
 
                     pub = (await session.execute(
@@ -98,14 +98,14 @@ class SignalGeneratorService:
                     if not pub:
                         continue
 
-                    logger.info("Generating signal for cluster %d (Primary pub: %s)", cluster.id, pub.title[:40])
+                    logger.info("Generating signal for cluster %s (Primary pub: %s)", cluster.id, pub.title[:40])
 
                     # Генерируем карточку сигнала
                     signal_data = await self._generate_mock_llm_response(pub.content, pub.title, client)
 
                     # Проверяем получилось ли обработать
                     if signal_data.get("exception"):
-                        logger.warning("Smts wrong in process cluster %d", cluster.id)
+                        logger.warning("Smts wrong in process cluster %s", cluster.id)
                         continue
 
                     # Создаем запись сигнала
@@ -135,7 +135,7 @@ class SignalGeneratorService:
                     signals_created += 1
 
             await session.commit()
-            logger.info("Successfully created %d new signals.", signals_created)
+            logger.info("Successfully created %s new signals.", signals_created)
             
         return signals_created
 
