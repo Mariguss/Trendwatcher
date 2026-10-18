@@ -18,6 +18,7 @@ class RunSettings(BaseModel):
 
 class DatabaseSettings(BaseModel):
     url: str = f"sqlite+aiosqlite:///{SQLITE_DB_PATH}"
+    gigachat_credentials: str | None = None
     db_name: str | None = None
     db_user: str | None = None
     db_password: str | None = None

@@ -1,5 +1,4 @@
 import logging
-import random
 from typing import List, Dict, Any
 
 from sqlalchemy import select
@@ -10,6 +9,8 @@ from json import loads
 
 from gigachat import GigaChat
 from gigachat.models import ChatCompletionRequest, ChatMessage
+
+from pathlib import Path
 
 from backend.core.database import database
 from backend.models.cluster_items import ClusterItem
@@ -24,6 +25,7 @@ logger = logging.getLogger(__name__)
 class SignalGeneratorService:
     SYSTEM_PROMPT:str
     semaphore = Semaphore(10)
+    signal_service_dir = Path(__file__).resolve().parent
     """
     Сервис для генерации структурированных сигналов на основе кластеров публикаций.
     Реализует логику: Кластер -> Анализ текста -> Карточка сигнала (Summary, Hotness, Why now, Draft).
@@ -55,7 +57,7 @@ class SignalGeneratorService:
         """Обрабатывает все кластеры и создает для них сигналы."""
         signals_created = 0
         
-        async for session in database.get_session():
+        async with database.get_session() as session:
             # Получаем все кластеры
             stmt = select(PublicationCluster)
             clusters = (await session.execute(stmt)).scalars().all()
@@ -65,9 +67,18 @@ class SignalGeneratorService:
                 return 0
 
             logger.info("Found %d clusters to process into signals.", len(clusters))
+
+            creaditials = os.getenv("APP_CONFIG__DB__GIGACHAT_CREDENTIALS")
+
+            if not creaditials:
+                logger.error("No credentials found to process into signals.")
+                return 0
+
+            cer_path = str(self.signal_service_dir / "Russian_Trusted_Root_CA.cer")
+
             async with GigaChat(
-                credentials="<the key>",
-                ca_bundle_file="Russian_Trusted_Root_CA.cer",
+                credentials=creaditials,
+                ca_bundle_file=cer_path,
                 scope="GIGACHAT_API_PERS"
             ) as client:
                 for cluster in clusters:
@@ -104,8 +115,8 @@ class SignalGeneratorService:
                     signal_data = await self._generate_mock_llm_response(pub.content, pub.title, client)
 
                     # Проверяем получилось ли обработать
-                    if signal_data.get("exception"):
-                        logger.warning("Smts wrong in process cluster %s", cluster.id)
+                    if signal_data.get("exception") or signal_data == {}:
+                        logger.warning("Smts wrong in process cluster %s. Process fell with exception %s", cluster.id, signal_data["exception"])
                         continue
 
                     # Создаем запись сигнала
@@ -149,8 +160,11 @@ if __name__ == "__main__":
         level=logging.INFO,
         format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
     )
-    
+    import os
+    from dotenv import load_dotenv
     import asyncio
+
+    load_dotenv()
     service = SignalGeneratorService()
     with open("SYSTEM_PROMPT", encoding="utf-8") as file:
         service.SYSTEM_PROMPT = file.read()
