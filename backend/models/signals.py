@@ -24,7 +24,7 @@ class Category(str, enum.Enum):
     REGULATION = "REGULATION"
     MARKET = 'MARKET'
     BANK = "BANK"
-
+    NONE = "NONE"
 
 class Signal(BaseWithUUID, CreatedAtMixin):
     cluster_id: Mapped[uuid.UUID] = mapped_column(
