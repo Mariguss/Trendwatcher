@@ -20,6 +20,7 @@ feedparser-sgmllib==2.1.0 ; python_version >= "3.12" and python_version < "3.15"
 feedparser==6.0.14 ; python_version >= "3.12" and python_version < "3.15"
 filelock==4.1.0 ; python_version >= "3.12" and python_version < "3.15"
 fsspec==2026.9.0 ; python_version >= "3.12" and python_version < "3.15"
+gigachat==0.2.3 ; python_version >= "3.12" and python_version < "3.15"
 greenlet==3.5.6 ; python_version >= "3.12" and python_version < "3.15"
 h11==0.16.0 ; python_version >= "3.12" and python_version < "3.15"
 hf-xet==1.7.0 ; python_version >= "3.12" and python_version < "3.15" and (sys_platform == "linux" or platform_machine == "x86_64" or platform_machine == "amd64" or platform_machine == "AMD64" or platform_machine == "arm64" or platform_machine == "aarch64") and (platform_machine == "aarch64" or platform_machine == "x86_64" or platform_machine == "amd64" or platform_machine == "AMD64" or platform_machine == "arm64")

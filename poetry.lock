@@ -1227,6 +1227,23 @@ test-full = ["adlfs", "aiohttp (!=4.0.0a0,!=4.0.0a1)", "backports-zstd ; python_
 tqdm = ["tqdm"]
 
 [[package]]
+name = "gigachat"
+version = "0.2.3"
+description = "GigaChat. Python-library for GigaChat API"
+optional = false
+python-versions = "<4,>=3.8"
+groups = ["main"]
+files = [
+    {file = "gigachat-0.2.3-py3-none-any.whl", hash = "sha256:61a51bcb9c3888c7643a9ffabe191695279f7cfca6b9d9d639e60c073a2385da"},
+    {file = "gigachat-0.2.3.tar.gz", hash = "sha256:b298dc70d28153e83780cdb7f40ec7273462ce497daafb1bee7e08509126aab3"},
+]
+
+[package.dependencies]
+httpx = ">=0.24,<1"
+pydantic = ">=2.0,<3"
+pydantic-settings = {version = ">=2.0,<3", markers = "python_version >= \"3.10\""}
+
+[[package]]
 name = "greenlet"
 version = "3.5.6"
 description = "Lightweight in-process concurrent programming"
@@ -4595,4 +4612,4 @@ test = ["pytest"]
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.12,<3.15"
-content-hash = "80c425e63a5f9e78804cf438842af12e9d6f8fa01ffc0e8e19ee01d4908382aa"
+content-hash = "bfef6ec255cc3086a1a95e6360aeb3953f64b3efff58ae027c25d21475df4105"

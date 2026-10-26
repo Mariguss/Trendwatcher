@@ -19,6 +19,7 @@ dependencies = [
     "bs4 (>=0.0.2,<0.0.3)",
     "feedparser (>=6.0.14,<7.0.0)",
     "sentence-transformers (>=6.1.0,<7.0.0)",
+    "gigachat (>=0.2.3,<0.3.0)",
 ]
 
 [dependency-groups]

@@ -1,6 +1,6 @@
+import asyncio
 import logging
-import random
-from typing import List, Dict, Any
+from typing import Dict, Any
 
 from sqlalchemy import select
 
@@ -11,6 +11,9 @@ from json import loads
 from gigachat import GigaChat
 from gigachat.models import ChatCompletionRequest, ChatMessage
 
+from pathlib import Path
+
+from backend.core.config import settings
 from backend.core.database import database
 from backend.models.cluster_items import ClusterItem
 from backend.models.publication_clusters import PublicationCluster
@@ -23,7 +26,8 @@ logger = logging.getLogger(__name__)
 
 class SignalGeneratorService:
     SYSTEM_PROMPT:str
-    semaphore = Semaphore(10)
+    semaphore = Semaphore(3)
+    signal_service_dir = Path(__file__).resolve().parent
     """
     Сервис для генерации структурированных сигналов на основе кластеров публикаций.
     Реализует логику: Кластер -> Анализ текста -> Карточка сигнала (Summary, Hotness, Why now, Draft).
@@ -55,7 +59,7 @@ class SignalGeneratorService:
         """Обрабатывает все кластеры и создает для них сигналы."""
         signals_created = 0
         
-        async for session in database.get_session():
+        async with database.get_session() as session:
             # Получаем все кластеры
             stmt = select(PublicationCluster)
             clusters = (await session.execute(stmt)).scalars().all()
@@ -65,9 +69,18 @@ class SignalGeneratorService:
                 return 0
 
             logger.info("Found %d clusters to process into signals.", len(clusters))
+
+            creaditials = settings.db.gigachat_credentials
+
+            if not creaditials:
+                logger.error("No credentials found to process into signals.")
+                return 0
+
+            cer_path = str(self.signal_service_dir / "Russian_Trusted_Root_CA.cer")
+
             async with GigaChat(
-                credentials="<the key>",
-                ca_bundle_file="Russian_Trusted_Root_CA.cer",
+                credentials=creaditials,
+                ca_bundle_file=cer_path,
                 scope="GIGACHAT_API_PERS"
             ) as client:
                 for cluster in clusters:
@@ -77,7 +90,7 @@ class SignalGeneratorService:
                     )).scalar_one_or_none()
 
                     if existing_signal:
-                        logger.debug("Signal already exists for cluster %d", cluster.id)
+                        logger.debug("Signal already exists for cluster %s", cluster.id)
                         continue
 
                     # Находим первичную публикацию в кластере для генерации выжимки
@@ -88,7 +101,7 @@ class SignalGeneratorService:
                     primary_item = (await session.execute(primary_item_stmt)).scalar_one_or_none()
 
                     if not primary_item:
-                        logger.warning("No primary item found for cluster %d", cluster.id)
+                        logger.warning("No primary item found for cluster %s", cluster.id)
                         continue
 
                     pub = (await session.execute(
@@ -98,14 +111,14 @@ class SignalGeneratorService:
                     if not pub:
                         continue
 
-                    logger.info("Generating signal for cluster %d (Primary pub: %s)", cluster.id, pub.title[:40])
+                    logger.info("Generating signal for cluster %s (Primary pub: %s)", cluster.id, pub.title[:40])
 
                     # Генерируем карточку сигнала
                     signal_data = await self._generate_mock_llm_response(pub.content, pub.title, client)
 
                     # Проверяем получилось ли обработать
-                    if signal_data.get("exception"):
-                        logger.warning("Smts wrong in process cluster %d", cluster.id)
+                    if signal_data.get("exception") or signal_data == {}:
+                        logger.warning("Smts wrong in process cluster %s. Process fell with exception %s", cluster.id, signal_data["exception"])
                         continue
 
                     # Создаем запись сигнала
@@ -135,7 +148,7 @@ class SignalGeneratorService:
                     signals_created += 1
 
             await session.commit()
-            logger.info("Successfully created %d new signals.", signals_created)
+            logger.info("Successfully created %s new signals.", signals_created)
             
         return signals_created
 
@@ -149,8 +162,7 @@ if __name__ == "__main__":
         level=logging.INFO,
         format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
     )
-    
-    import asyncio
+
     service = SignalGeneratorService()
     with open("SYSTEM_PROMPT", encoding="utf-8") as file:
         service.SYSTEM_PROMPT = file.read()
