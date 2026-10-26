@@ -1,5 +1,6 @@
+import asyncio
 import logging
-from typing import List, Dict, Any
+from typing import Dict, Any
 
 from sqlalchemy import select
 
@@ -12,6 +13,7 @@ from gigachat.models import ChatCompletionRequest, ChatMessage
 
 from pathlib import Path
 
+from backend.core.config import settings
 from backend.core.database import database
 from backend.models.cluster_items import ClusterItem
 from backend.models.publication_clusters import PublicationCluster
@@ -24,7 +26,7 @@ logger = logging.getLogger(__name__)
 
 class SignalGeneratorService:
     SYSTEM_PROMPT:str
-    semaphore = Semaphore(10)
+    semaphore = Semaphore(3)
     signal_service_dir = Path(__file__).resolve().parent
     """
     Сервис для генерации структурированных сигналов на основе кластеров публикаций.
@@ -68,7 +70,7 @@ class SignalGeneratorService:
 
             logger.info("Found %d clusters to process into signals.", len(clusters))
 
-            creaditials = os.getenv("APP_CONFIG__DB__GIGACHAT_CREDENTIALS")
+            creaditials = settings.db.gigachat_credentials
 
             if not creaditials:
                 logger.error("No credentials found to process into signals.")
@@ -160,11 +162,7 @@ if __name__ == "__main__":
         level=logging.INFO,
         format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
     )
-    import os
-    from dotenv import load_dotenv
-    import asyncio
 
-    load_dotenv()
     service = SignalGeneratorService()
     with open("SYSTEM_PROMPT", encoding="utf-8") as file:
         service.SYSTEM_PROMPT = file.read()
